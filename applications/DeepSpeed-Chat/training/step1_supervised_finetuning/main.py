@@ -9,11 +9,13 @@ import math
 import sys
 
 import torch
+import tqdm
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
 from transformers import (
     AutoModelForCausalLM,
+    AutoTokenizer,
     SchedulerType,
     default_data_collator,
     get_scheduler,
@@ -25,7 +27,8 @@ from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from utils.data.data_utils import create_prompt_dataset
-from utils.utils import print_rank_0, to_device, save_hf_format, set_random_seed, get_all_reduce_mean, get_optimizer_grouped_parameters, save_zero_three_model, load_hf_tokenizer
+from utils.utils import print_rank_0, to_device, save_hf_format, set_random_seed, get_all_reduce_mean, \
+    get_optimizer_grouped_parameters, save_zero_three_model
 from utils.ds_utils import get_train_ds_config
 from utils.module.lora import convert_linear_layer_to_lora, convert_lora_to_linear_layer, only_optimize_lora_parameters
 from utils.model.model_utils import create_hf_model
@@ -39,15 +42,15 @@ def parse_args():
                         nargs='*',
                         default=['Dahoas/rm-static'],
                         help='Path to the training dataset. Accepted format:'
-                        '1) a single data path, 2) multiple datasets in the'
-                        'form: dataset1-path dataset2-path ...')
+                             '1) a single data path, 2) multiple datasets in the'
+                             'form: dataset1-path dataset2-path ...')
     parser.add_argument('--data_split',
                         type=str,
-                        default='2,4,4',
+                        default='7,1,2',
                         help='Comma-separated list of proportions for training'
-                        'phase 1, 2, and 3 data. For example the split `6,2,2`'
-                        'will use 60% of data for phase 1, 20% for phase 2'
-                        'and 20% for phase 3.')
+                             'phase 1, 2, and 3 data. For example the split `6,2,2`'
+                             'will use 60% of data for phase 1, 20% for phase 2'
+                             'and 20% for phase 3.')
     parser.add_argument(
         '--sft_only_data_path',
         nargs='*',
@@ -57,8 +60,8 @@ def parse_args():
         '--data_output_path',
         type=str,
         default='/tmp/data_files/',
-        help=
-        'Where to store the data-related files such as shuffle index. This needs to be on a local storage of a node (not on a shared storage)'
+        help='Where to store the data-related files such as shuffle index. '
+             'This needs to be on a local storage of a node (not on a shared storage)'
     )
     parser.add_argument(
         "--model_name_or_path",
@@ -70,13 +73,13 @@ def parse_args():
     parser.add_argument(
         "--per_device_train_batch_size",
         type=int,
-        default=16,
+        default=2,
         help="Batch size (per device) for the training dataloader.",
     )
     parser.add_argument(
         "--per_device_eval_batch_size",
         type=int,
-        default=16,
+        default=2,
         help="Batch size (per device) for the evaluation dataloader.",
     )
     parser.add_argument(
@@ -149,7 +152,7 @@ def parse_args():
         type=int,
         default=0,
         help='ZeRO optimization stage for Actor model (and clones).')
-    ## LoRA for efficient training setting
+    # LoRA for efficient training setting
     parser.add_argument("--lora_dim",
                         type=int,
                         default=0,
@@ -189,11 +192,11 @@ def main():
 
     ds_config = get_train_ds_config(offload=args.offload,
                                     stage=args.zero_stage)
-    ds_config[
-        'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
-    ds_config[
-        'train_batch_size'] = args.per_device_train_batch_size * torch.distributed.get_world_size(
-        ) * args.gradient_accumulation_steps
+    ds_config['train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
+    ds_config['train_batch_size'] = \
+        args.per_device_train_batch_size * \
+        torch.distributed.get_world_size() \
+        * args.gradient_accumulation_steps
 
     # If passed along, set the training seed now.
     set_random_seed(args.seed)
@@ -202,7 +205,8 @@ def main():
 
     torch.distributed.barrier()
 
-    tokenizer = load_hf_tokenizer(args.model_name_or_path, fast_tokenizer=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path,
+                                              fast_tokenizer=True)
     tokenizer.pad_token = tokenizer.eos_token
 
     model = create_hf_model(AutoModelForCausalLM,
@@ -306,10 +310,10 @@ def main():
 
     for epoch in range(args.num_train_epochs):
         print_rank_0(
-            f"Beginning of Epoch {epoch+1}/{args.num_train_epochs}, Total Micro Batches {len(train_dataloader)}",
+            f"Beginning of Epoch {epoch + 1}/{args.num_train_epochs}, Total Micro Batches {len(train_dataloader)}",
             args.global_rank)
         model.train()
-        for step, batch in enumerate(train_dataloader):
+        for step, batch in tqdm.tqdm(enumerate(train_dataloader)):
             batch = to_device(batch, device)
             outputs = model(**batch, use_cache=False)
             loss = outputs.loss
@@ -318,7 +322,7 @@ def main():
 
         # Evaluate perplexity on the validation set.
         print_rank_0(
-            f"***** Evaluating perplexity, Epoch {epoch+1}/{args.num_train_epochs} *****",
+            f"***** Evaluating perplexity, Epoch {epoch + 1}/{args.num_train_epochs} *****",
             args.global_rank)
         perplexity = evaluation(model, eval_dataloader)
         print_rank_0(f"ppl: {perplexity}", args.global_rank)
@@ -332,7 +336,8 @@ def main():
             save_hf_format(model, tokenizer, args)
 
         if args.zero_stage == 3:
-            # For zero stage 3, each gpu only has a part of the model, so we need a special save function
+            # For zero stage 3, each gpu only has a part of the model,
+            # so we need a special save function
             save_zero_three_model(model,
                                   args.global_rank,
                                   args.output_dir,
