@@ -15,7 +15,7 @@ if [ "$ZERO_STAGE" == "" ]; then
 fi
 mkdir -p $OUTPUT
 
-deepspeed --num_gpus 1 main.py --model_name_or_path facebook/opt-1.3b \
+deepspeed --num_gpus 1 main.py --model_name_or_path facebook/opt-2.7b \
    --gradient_accumulation_steps 1 --lora_dim 128 --zero_stage 3 \
    --deepspeed --per_device_train_batch_size 1 \
    --per_device_eval_batch_size 1 --output_dir ./output
