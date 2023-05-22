@@ -66,9 +66,9 @@ def parse_args():
     parser.add_argument(
         "--model_name_or_path",
         type=str,
+        default="facebook/opt-1.3b",
         help=
         "Path to pretrained model or model identifier from huggingface.co/models.",
-        required=True,
     )
     parser.add_argument(
         "--per_device_train_batch_size",
@@ -253,7 +253,7 @@ def main():
     def evaluation(model, eval_dataloader):
         model.eval()
         losses = 0
-        for step, batch in enumerate(eval_dataloader):
+        for step, batch in tqdm.tqdm(enumerate(eval_dataloader)):
             batch = to_device(batch, device)
             with torch.no_grad():
                 outputs = model(**batch)
