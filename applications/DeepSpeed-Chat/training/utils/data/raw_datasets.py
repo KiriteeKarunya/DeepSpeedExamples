@@ -11,7 +11,7 @@ import re
 # follow in order to have a unified API and unified data format.
 class PromptRawDataset(object):
 
-    def __init__(self, output_path, seed, local_rank, dataset_name):
+    def __init__(self, output_path, seed, local_rank, dataset_name, **kwargs):
         self.output_path = output_path
         self.seed = seed
         self.local_rank = local_rank
@@ -50,6 +50,36 @@ class DahoasRmstaticDataset(PromptRawDataset):
         super().__init__(output_path, seed, local_rank, dataset_name)
         self.dataset_name = "Dahoas/rm-static"
         self.dataset_name_clean = "Dahoas_rm_static"
+
+    def get_train_data(self):
+        return self.raw_datasets["train"]
+
+    def get_eval_data(self):
+        return self.raw_datasets["test"]
+
+    def get_prompt(self, sample):
+        return sample['prompt']
+
+    def get_chosen(self, sample):
+        return sample['chosen']
+
+    def get_rejected(self, sample):
+        return sample['rejected']
+
+    def get_prompt_and_chosen(self, sample):
+        return sample['prompt'] + sample['chosen']
+
+    def get_prompt_and_rejected(self, sample):
+        return sample['prompt'] + sample['rejected']
+
+
+# English dataset
+class KiriteeBoatData(PromptRawDataset):
+
+    def __init__(self, output_path, seed, local_rank, dataset_name):
+        super().__init__(output_path, seed, local_rank, dataset_name)
+        self.dataset_name = "KiriteeGak/boat-data"
+        self.dataset_name_clean = "kiritee_boat_static"
 
     def get_train_data(self):
         return self.raw_datasets["train"]

@@ -61,6 +61,8 @@ def get_raw_dataset(dataset_name, output_path, seed, local_rank):
     elif "lmqg/qag_jaquad" in dataset_name:
         return raw_datasets.LmqgQagjaquadDataset(output_path, seed, local_rank,
                                                  dataset_name)
+    elif "KiriteeGak/boat-data" in dataset_name:
+        return raw_datasets.KiriteeBoatData(output_path, seed, local_rank, dataset_name)
     else:
         raise RuntimeError(
             f"We do not have configs for dataset {dataset_name}, but you can add it by yourself in raw_datasets.py."
