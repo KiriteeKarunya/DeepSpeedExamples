@@ -329,15 +329,18 @@ def main():
         model.tput_timer.update_epoch_count()
 
     if args.output_dir is not None:
+        print("print {}".format(args.output_dir))
         print_rank_0('saving the final model ...', args.global_rank)
         model = convert_lora_to_linear_layer(model)
-
+        print_rank_0("model converted to lora layer")
         if args.global_rank == 0:
+            print_rank_0("model saving to hf format")
             save_hf_format(model, tokenizer, args)
 
         if args.zero_stage == 3:
             # For zero stage 3, each gpu only has a part of the model,
             # so we need a special save function
+            print_rank_0("in zero 3 stage last conditional")
             save_zero_three_model(model,
                                   args.global_rank,
                                   args.output_dir,

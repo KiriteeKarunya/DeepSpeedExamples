@@ -10,6 +10,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path",
                         type=str,
+                        default="training/step1_supervised_finetuning/output/"
                         help="Directory containing trained actor model")
     parser.add_argument(
         "--max_new_tokens",

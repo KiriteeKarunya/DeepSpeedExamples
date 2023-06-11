@@ -27,13 +27,15 @@ def parse_args():
 
 
 def get_generator(path):
-    tokenizer = AutoTokenizer.from_pretrained(path, fast_tokenizer=True)
+    print("inside generator")
+    tokenizer = AutoTokenizer.from_pretrained("facebook/opt-6.7b", fast_tokenizer=True)
     tokenizer.pad_token = tokenizer.eos_token
 
     model_config = AutoConfig.from_pretrained(path)
     model = OPTForCausalLM.from_pretrained(path,
                                            from_tf=bool(".ckpt" in path),
                                            config=model_config).half()
+    print("model loaded")
 
     model.config.end_token_id = tokenizer.eos_token_id
     model.config.pad_token_id = model.config.eos_token_id
@@ -70,9 +72,10 @@ def process_response(response, num_rounds):
 
 
 def main(args):
+    print("inside main")
     generator = get_generator(args.path)
     set_seed(42)
-
+    print("outside generator")
     user_input = ""
     num_rounds = 0
     while True:
@@ -98,7 +101,12 @@ if __name__ == "__main__":
     # Silence warnings about `max_new_tokens` and `max_length` being set
     logging.getLogger("transformers").setLevel(logging.ERROR)
 
-    args = parse_args()
+    # args = parse_args()
+    class some_args():
+        def __init__(self, path=None, max_new_tokens=128):
+            self.path = "facebook/opt-13b"
+            self.max_new_tokens = 512
+    args = some_args()
     main(args)
 
 # Example:
